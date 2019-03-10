@@ -28,7 +28,7 @@ pi=math.pi
 emptyvec = np.array([0,0,1])
 emptyvec2 = np.array([0,1,0])
 
-obj = bpy.data.objects['Cube.001']
+obj = bpy.data.objects['Cube']
 mat = obj.matrix_world
 objloc = list(mat.translation) #the location of the origin point as a list
 
