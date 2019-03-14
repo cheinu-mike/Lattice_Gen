@@ -25,6 +25,8 @@ from mathutils import Vector
 #import seaborn as sns; sns.set()
 
 pi=math.pi
+
+#testing matrices delete later
 emptyvec = np.array([0,0,1])
 emptyvec2 = np.array([0,1,0])
 
@@ -41,6 +43,11 @@ if obj.mode == 'EDIT':
 else:
     verts = [list(vert.co) for vert in obj.data.vertices]
     matvert = [vert.co for vert in obj.data.vertices]
+
+class polyinfo:
+    def __init__(self, origin_verts):
+        pass
+        
 
 origin_verts = np.array(verts) + np.array([objloc[0],objloc[1], objloc[2]]) #global location of the verts
 t_vert = np.transpose(origin_verts)                         #all the axis into single columns of X, Y, Z
