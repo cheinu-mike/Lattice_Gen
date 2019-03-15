@@ -61,7 +61,9 @@ pi=math.pi
 emptyvec = np.array([0,0,1])
 emptyvec2 = np.array([0,1,0])
 
+#*******SELECT THE OBJECT YOU WANT******
 obj = bpy.data.objects['Cube']
+#***************************************
 mat = obj.matrix_world
 objloc = list(mat.translation) #the location of the origin point as a list
 
@@ -78,14 +80,41 @@ else:
 class polyinfo:
     def __init__(self, origin_verts):
         pass
+#Extract the local vertes coordinates of the object
+def get_localvert_coor(active_object):      
+    if active_object.mode == 'EDIT':
+        bm = bmesh.from_edit_mesh(active_object.data)
+        verts = [list(vert.co) for vert in bm.verts]
+        return verts
+    else:
+        verts = [list(vert.co) for vert in active_object.data.vertices]
+        return verts
+    
+#extract quaternions from vector positions
+def get_quaternion(vector_1, vector_2, rotation_vector): #use the crossproduct for rotation_vector first 
+    angle = math.acos(np.dot(vector_1, vector_2)) #breakdown of dot product of the vectors which gives the angle
+    qxyz = (rotation_vector)*np.sin(angle/2)
+    qw = np.cos(angle/2)
+    quaternion = [qw]+list(qxyz)
+    
+    return quaternion
 #===============================
 class PCA:
-    def __init__(self, selected_object):
-        self.vertlist =  selected_object.data.vertices
-        self.matvert  = [list(vert.co) for vert in self.vertlist]
+    def __init__(self, selected_object):   #make sure selected_object = bpy.data.objects['NAME'] or bpy.context.selected_objects
+        self.localverts = get_localvert_coor(selected_object)
+        self.globalverts = np.array(self.localverts) + np.array(selected_object.matrix_world.translation)
+        t_verts = np.transpose(self.globalverts)
+        self.eigenvalue, self.eigenvector = linalg.eig(np.cov(t_verts))
+        self.eigenvector = np.transpose(self.eigenvector)
+        self.xmean = np.mean(t_verts[0]) #+ objloc[0]
+        self.ymean = np.mean(t_verts[1]) #+ objloc[1]
+        self.zmean = np.mean(t_verts[2]) #+ objloc[2]
     def testprint(self):
-        print("this is printing inside the class", self.matvert)
+        print("this is printing from inside the class", self.xmean)
         
+    def create_lattice(self):
+        bpy.ops.object.add(type='LATTICE', view_align=False, enter_editmode=False, location=(0, 0, 0))
+        pass
 def global_vert_position(vert_array, object_coor):
     global_verts  = np.array(vert_array) + np.array(object_coor)
     return global_verts
@@ -174,6 +203,7 @@ magnitude = max(t_corverts[0])
 
 quater = [qw]+list(qxyz)
 
+bpy.data.objects['Cube'].select_set(False)
 bpy.data.objects['Lattice'].select_set(True)
 bpy.context.object.rotation_mode = 'QUATERNION'
 bpy.data.objects['Lattice'].rotation_quaternion = quater
