@@ -1,4 +1,5 @@
 #to do: figure out how to get the magnitude of the vectors
+    #Fix quaternion rotation to take into account y and z of eigenvectors
     #get vertex coordinates with respect to new basis
     #get absolute maximum x' y' z' since those will be the maximum points and therefore will be the magnitude
     #create a global variable of the margin
@@ -24,6 +25,36 @@ from mathutils import Vector
 #import matplotlib.pyplot as plt
 #import seaborn as sns; sns.set()
 
+
+#=========
+class HelloWorldOperator(bpy.types.Operator):
+    bl_idname = "wm.hello_world"
+    bl_label = "Minimal Operator"
+
+    def execute(self, context):
+        print("Hello World")
+        return {'FINISHED'}
+
+bpy.utils.register_class(HelloWorldOperator)
+
+# test call to the newly defined operator
+bpy.ops.wm.hello_world()
+
+class HelloWorldPanel(bpy.types.Panel):
+    bl_idname = "OBJECT_PT_hello_world"
+    bl_label = "Hello World"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "object"
+
+    def draw(self, context):
+        self.layout.label(text="Hello World")
+
+
+bpy.utils.register_class(HelloWorldPanel)
+
+#=========
+
 pi=math.pi
 
 #testing matrices delete later
@@ -47,9 +78,23 @@ else:
 class polyinfo:
     def __init__(self, origin_verts):
         pass
+#===============================
+class PCA:
+    def __init__(self, selected_object):
+        self.vertlist =  selected_object.data.vertices
+        self.matvert  = [list(vert.co) for vert in self.vertlist]
+    def testprint(self):
+        print("this is printing inside the class", self.matvert)
         
+def global_vert_position(vert_array, object_coor):
+    global_verts  = np.array(vert_array) + np.array(object_coor)
+    return global_verts
 
+PCA(obj).testprint()
+#===============================    
 origin_verts = np.array(verts) + np.array([objloc[0],objloc[1], objloc[2]]) #global location of the verts
+origin_verts = global_vert_position(verts, objloc)
+
 t_vert = np.transpose(origin_verts)                         #all the axis into single columns of X, Y, Z
 lenlist = len(verts)                                        #length of list (number of vertices)
 eigenvalue, eigenvector = linalg.eig(np.cov(t_vert))        #eigenvector and value
@@ -129,6 +174,7 @@ magnitude = max(t_corverts[0])
 
 quater = [qw]+list(qxyz)
 
+bpy.data.objects['Lattice'].select_set(True)
 bpy.context.object.rotation_mode = 'QUATERNION'
 bpy.data.objects['Lattice'].rotation_quaternion = quater
 bpy.context.object.location = [xmean,ymean,zmean]
@@ -137,3 +183,5 @@ bpy.context.object.scale = [2*max(abs(pcz)),2*max(abs(pcy)),2*max(abs(pcx))]
 #print(verts[1])
 #meanx = np.mean(verts, axis = 0)
 #print(meanx)
+
+print("objloc", objloc)
