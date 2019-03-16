@@ -25,8 +25,8 @@ from mathutils import Vector
 #import matplotlib.pyplot as plt
 #import seaborn as sns; sns.set()
 
-
-#=========
+#testing section
+#==========================
 class HelloWorldOperator(bpy.types.Operator):
     bl_idname = "wm.hello_world"
     bl_label = "Minimal Operator"
@@ -77,10 +77,13 @@ else:
     verts = [list(vert.co) for vert in obj.data.vertices]
     matvert = [vert.co for vert in obj.data.vertices]
 
-class polyinfo:
-    def __init__(self, origin_verts):
-        pass
-#Extract the local vertes coordinates of the object
+#returns list of the selected objects (bpy.context.selected_objects)
+def get_objname(selected_objects):
+    return [item.name for item in selected_objects]
+        
+get_objname(bpy.context.selected_objects)
+
+#Extract the local vertex coordinates of the object
 def get_localvert_coor(active_object):      
     if active_object.mode == 'EDIT':
         bm = bmesh.from_edit_mesh(active_object.data)
@@ -89,6 +92,13 @@ def get_localvert_coor(active_object):
     else:
         verts = [list(vert.co) for vert in active_object.data.vertices]
         return verts
+
+#Extract the vertex coordinates with respect to PC axis
+def get_PC_coor(verts, vert_mean, eigenvector):
+    PC_verts = np.dot(eigenvector, verts)
+    PC_mean = np.dot(eigenvector, vert_mean)
+    
+    return PC_verts - PC_mean
     
 #extract quaternions from vector positions
 def get_quaternion(vector_1, vector_2, rotation_vector): #use the crossproduct for rotation_vector first 
@@ -101,25 +111,30 @@ def get_quaternion(vector_1, vector_2, rotation_vector): #use the crossproduct f
 #===============================
 class PCA:
     def __init__(self, selected_object):   #make sure selected_object = bpy.data.objects['NAME'] or bpy.context.selected_objects
+        self.objname = selected_object.name
         self.localverts = get_localvert_coor(selected_object)
         self.globalverts = np.array(self.localverts) + np.array(selected_object.matrix_world.translation)
-        t_verts = np.transpose(self.globalverts)
+        t_verts = np.transpose(self.globalverts)    #Columns of X, Y, Z
+        self.covarmat = (np.cov(t_verts))           #covariance matrix
         self.eigenvalue, self.eigenvector = linalg.eig(np.cov(t_verts))
         self.eigenvector = np.transpose(self.eigenvector)
-        self.xmean = np.mean(t_verts[0]) #+ objloc[0]
-        self.ymean = np.mean(t_verts[1]) #+ objloc[1]
-        self.zmean = np.mean(t_verts[2]) #+ objloc[2]
+        self.xmean = np.mean(t_verts[0])
+        self.ymean = np.mean(t_verts[1])
+        self.zmean = np.mean(t_verts[2])
     def testprint(self):
         print("this is printing from inside the class", self.xmean)
         
     def create_lattice(self):
-        bpy.ops.object.add(type='LATTICE', view_align=False, enter_editmode=False, location=(0, 0, 0))
+        lattice_name = 'PCA_' + str(self.name) + '_lattice'
+        bpy.ops.object.add(type='LATTICE', view_align=False, enter_editmode=False, location=(self.xmean, self.ymean, self.zmean))
+        bpy.data.objects['Lattice'].name = lattice_name
+        
         pass
 def global_vert_position(vert_array, object_coor):
     global_verts  = np.array(vert_array) + np.array(object_coor)
     return global_verts
 
-PCA(obj).testprint()
+PCA(obj).objname
 #===============================    
 origin_verts = np.array(verts) + np.array([objloc[0],objloc[1], objloc[2]]) #global location of the verts
 origin_verts = global_vert_position(verts, objloc)
@@ -159,6 +174,7 @@ pcz = corverts[2] - cormean[2]
 #print("Corrected vertices: ", t_corverts)
 #print('covariance matrix: ', np.cov(t_vert))       #covariance matrix
 
+'''
 print("cross product: \n",np.cross(emptyvec,eigenvector[0]))
 print("Eigenvalues are: \n", eigenvalue)
 print("Eigenvectors are: \n", eigenvector)        #each list represents an axis: [[x],[y],[z]]
@@ -166,11 +182,12 @@ print("Eigenvector length: \n", np.linalg.norm(eigenvector[0]))
 print("Quaternion Axis:  \n", qxyz)
 print("Quaternion Rotation:  \n", qw)
 print("Angle between vectors:  \n", angle, '\n', 'in degrees: \n', math.degrees(angle),'\n')
-
+'''
+'''
 print(max(abs(pcx)))
 print(max(abs(pcy)))
 print(max(abs(pcz)))
-
+'''
 #print("Magnitude:  ", max(t_corverts[0]), max(t_corverts[1]) ,max(t_corverts[2]))
 #print("The mean of the data points: ", np.mean(t_vert[0]))
 #print(Vector(eigenvector[0]))
@@ -190,28 +207,14 @@ xangle = [math.atan(-eigenvector[y][i]/eigenvector[z][i]) for i in range(3)]
 yangle = [math.atan(eigenvector[x][i]/eigenvector[z][i]) for i in range(3)]
 zangle = [math.atan(eigenvector[y][i]/eigenvector[x][i]) for i in range(3)]
 magnitude = max(t_corverts[0])
-#print("degrees:  ", xangle)
-#print("degrees:  ", yangle)
-#print("degrees:  ", zangle)
-
-#bpy.ops.object.empty_add(type='SINGLE_ARROW', 
-#                        radius = 1, #magnitude,
-#                        view_align=False, 
-#                        location=(xmean, ymean, zmean), 
-#                        rotation = (0, 0, 0),
-#                        layers=(False, True, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False))
 
 quater = [qw]+list(qxyz)
 
+for obj in bpy.data.objects:
+    obj.select_set(False)
 bpy.data.objects['Cube'].select_set(False)
 bpy.data.objects['Lattice'].select_set(True)
-bpy.context.object.rotation_mode = 'QUATERNION'
+bpy.data.objects['Lattice'].rotation_mode = 'QUATERNION'
 bpy.data.objects['Lattice'].rotation_quaternion = quater
-bpy.context.object.location = [xmean,ymean,zmean]
-bpy.context.object.scale = [2*max(abs(pcz)),2*max(abs(pcy)),2*max(abs(pcx))]
-#print(verts)
-#print(verts[1])
-#meanx = np.mean(verts, axis = 0)
-#print(meanx)
-
-print("objloc", objloc)
+bpy.data.objects['Lattice'].location = [xmean,ymean,zmean]
+bpy.data.objects['Lattice'].scale = [2*max(abs(pcz)),2*max(abs(pcy)),2*max(abs(pcx))]
