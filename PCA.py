@@ -13,7 +13,6 @@ margin = 0
 import sys
 sys.path.append('/home/cheinu/anaconda3/envs/cheinu/lib/python3.6/')
 
-#%matplotlib inline
 import bpy, bmesh
 import numpy as np
 import math
@@ -21,9 +20,6 @@ import mathutils
 from numpy import linalg
 from math import degrees
 from mathutils import Vector
-#import pandas as pd
-#import matplotlib.pyplot as plt
-#import seaborn as sns; sns.set()
 
 #testing section
 #==========================
@@ -94,11 +90,13 @@ def get_localvert_coor(active_object):
         return verts
 
 #Extract the vertex coordinates with respect to PC axis
-def get_PC_coor(verts, vert_mean, eigenvector):
-    PC_verts = np.dot(eigenvector, verts)
-    PC_mean = np.dot(eigenvector, vert_mean)
+def get_PC_coor(verts, vert_mean, eigenmatrix):
+    PC_verts = np.dot(eigenmatrix, verts)
+    PC_mean = np.dot(eigenmatrix, vert_mean)
     
-    return PC_verts - PC_mean
+    PC_verts = np.transpose(PC_verts) - PC_mean
+    
+    return np.transpose(PC_verts)
     
 #extract quaternions from vector positions
 def get_quaternion(vector_1, vector_2, rotation_vector): #use the crossproduct for rotation_vector first 
@@ -110,32 +108,60 @@ def get_quaternion(vector_1, vector_2, rotation_vector): #use the crossproduct f
     return quaternion
 #===============================
 class PCA:
+    
+    emptyvec = np.array([0,0,1])
+    emptyvec_y = np.array([0,1,0])
+    
     def __init__(self, selected_object):   #make sure selected_object = bpy.data.objects['NAME'] or bpy.context.selected_objects
         self.objname = selected_object.name
         self.localverts = get_localvert_coor(selected_object)
         self.globalverts = np.array(self.localverts) + np.array(selected_object.matrix_world.translation)
-        t_verts = np.transpose(self.globalverts)    #Columns of X, Y, Z
-        self.covarmat = (np.cov(t_verts))           #covariance matrix
-        self.eigenvalue, self.eigenvector = linalg.eig(np.cov(t_verts))
+        self.t_verts = np.transpose(self.globalverts)    #Columns of X, Y, Z
+        self.covarmat = (np.cov(self.t_verts))           #covariance matrix
+        self.eigenvalue, self.eigenvector = linalg.eig(self.covarmat)
         self.eigenvector = np.transpose(self.eigenvector)
-        self.xmean = np.mean(t_verts[0])
-        self.ymean = np.mean(t_verts[1])
-        self.zmean = np.mean(t_verts[2])
+        self.xmean = np.mean(self.t_verts[0])
+        self.ymean = np.mean(self.t_verts[1])
+        self.zmean = np.mean(self.t_verts[2])
+        self.mean = [self.xmean, self.ymean, self.zmean]
+        self.pcx = get_PC_coor(self.t_verts, self.mean, self.eigenvector)[0]
+        self.pcy = get_PC_coor(self.t_verts, self.mean, self.eigenvector)[1]
+        self.pcz = get_PC_coor(self.t_verts, self.mean, self.eigenvector)[2]
+        
     def testprint(self):
         print("this is printing from inside the class", self.xmean)
         
-    def create_lattice(self):
-        lattice_name = 'PCA_' + str(self.name) + '_lattice'
+    def create_lattice(self, marginx = 0, marginy = 0, marginz = 0):
+        for obj in bpy.data.objects:
+            obj.select_set(False)
+        
+        lattice_name = 'PCA_' + str(self.objname) + '_lattice'
+        
         bpy.ops.object.add(type='LATTICE', view_align=False, enter_editmode=False, location=(self.xmean, self.ymean, self.zmean))
         bpy.data.objects['Lattice'].name = lattice_name
         
+        quater = get_quaternion(emptyvec, self.eigenvector[0], np.cross(emptyvec,self.eigenvector[0]))
+        quater2 = get_quaternion(emptyvec, self.eigenvector[0], self.eigenvector[0])
+        
+        #self.newe = 
+        quater = mathutils.Matrix(self.eigenvector).to_quaternion()
+        
+        bpy.data.objects[lattice_name].select_set(True)
+        bpy.data.objects[lattice_name].rotation_mode = 'QUATERNION'
+        bpy.data.objects[lattice_name].rotation_quaternion = quater
+        bpy.data.objects[lattice_name].location = [self.xmean,self.ymean,self.zmean]
+        bpy.data.objects[lattice_name].scale = [2*max(abs(self.pcz)),2*max((self.pcy)),2*max((self.pcx))]
+        
+    def apply_modifier():
         pass
+
+PCA(obj).create_lattice()
+#===============================    
+
 def global_vert_position(vert_array, object_coor):
     global_verts  = np.array(vert_array) + np.array(object_coor)
     return global_verts
 
-PCA(obj).objname
-#===============================    
 origin_verts = np.array(verts) + np.array([objloc[0],objloc[1], objloc[2]]) #global location of the verts
 origin_verts = global_vert_position(verts, objloc)
 
@@ -209,7 +235,7 @@ zangle = [math.atan(eigenvector[y][i]/eigenvector[x][i]) for i in range(3)]
 magnitude = max(t_corverts[0])
 
 quater = [qw]+list(qxyz)
-
+'''
 for obj in bpy.data.objects:
     obj.select_set(False)
 bpy.data.objects['Cube'].select_set(False)
@@ -218,3 +244,4 @@ bpy.data.objects['Lattice'].rotation_mode = 'QUATERNION'
 bpy.data.objects['Lattice'].rotation_quaternion = quater
 bpy.data.objects['Lattice'].location = [xmean,ymean,zmean]
 bpy.data.objects['Lattice'].scale = [2*max(abs(pcz)),2*max(abs(pcy)),2*max(abs(pcx))]
+'''
