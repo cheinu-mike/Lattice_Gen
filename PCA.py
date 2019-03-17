@@ -1,6 +1,3 @@
-#top priority: align y to eigen_y
-    #Fix quaternion rotation to take into account y and z of eigenvectors
-    #create a global variable of the margin
 #take the new values and then generate a lattice
 #create buttons
 #optional: the mean of the vertex points should be the volume and not at the mean of the vertex points
@@ -18,47 +15,13 @@ import mathutils
 from numpy import linalg
 from math import degrees
 from mathutils import Vector
-
-#testing section
-#==========================
-class HelloWorldOperator(bpy.types.Operator):
-    bl_idname = "wm.hello_world"
-    bl_label = "Minimal Operator"
-
-    def execute(self, context):
-        print("Hello World")
-        return {'FINISHED'}
-
-bpy.utils.register_class(HelloWorldOperator)
-
-# test call to the newly defined operator
-bpy.ops.wm.hello_world()
-
-class HelloWorldPanel(bpy.types.Panel):
-    bl_idname = "OBJECT_PT_hello_world"
-    bl_label = "Hello World"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = "object"
-
-    def draw(self, context):
-        self.layout.label(text="Hello World")
-
-
-bpy.utils.register_class(HelloWorldPanel)
-
-#=========
-
-pi=math.pi
-
-#testing matrices delete later
-emptyvec = np.array([0,0,1])
-#emptyvec2 = np.array([0,1,0])
+from mathutils import Matrix
 
 #*******SELECT THE OBJECT YOU WANT******
 obj = bpy.data.objects['Cube']
 obj2 = bpy.data.objects['Cube.001']
 obj3 = bpy.data.objects['Cube.002']
+selected_obj = bpy.context.selected_objects
 #***************************************
 
 
@@ -68,15 +31,19 @@ def get_objname(selected_objects):
         
 get_objname(bpy.context.selected_objects)
 
-#Extract the local vertex coordinates of the object
-def get_localvert_coor(active_object):      
-    if active_object.mode == 'EDIT':
-        bm = bmesh.from_edit_mesh(active_object.data)
-        verts = [list(vert.co) for vert in bm.verts]
-        return verts
-    else:
-        verts = [list(vert.co) for vert in active_object.data.vertices]
-        return verts
+#Extract the GLOBAL vertex coordinates of the object
+def get_localvert_coor(active_object):
+    all_verts = []
+    for objs in active_object:
+        global_verts = np.array(objs.matrix_world.translation)
+        if objs.mode == 'EDIT':
+            bm = bmesh.from_edit_mesh(objs.data)
+            verts = [np.array(vert.co) + global_verts for vert in bm.verts]
+            all_verts += verts
+        else:
+            verts = [np.array(vert.co) + global_verts for vert in objs.data.vertices]
+            all_verts += verts
+    return all_verts
 
 #Extract the vertex coordinates with respect to PC axis
 def get_PC_coor(verts, vert_mean, eigenmatrix):
@@ -100,12 +67,13 @@ def get_quaternion(vector_1, vector_2, rotation_vector): #use the crossproduct f
 class PCA:
     
     def __init__(self, selected_object):   #make sure selected_object = bpy.data.objects['NAME'] or bpy.context.selected_objects
+        self.identity = np.array([[1,0,0],[0,1,0],[0,0,1]])
         self.basex = np.array([1,0,0])
         self.basey = np.array([0,1,0])
         self.basez = np.array([0,0,1])
-        self.objname = selected_object.name
-        self.localverts = get_localvert_coor(selected_object)
-        self.globalverts = np.array(self.localverts) + np.array(selected_object.matrix_world.translation)
+        self.objname = selected_object[0].name  #CHANGE FOR MULTIOBJECT
+        self.localverts = get_localvert_coor(selected_object) #CHANGE FOR MULTIOBJECT AND EDITMODE
+        self.globalverts = np.array(self.localverts) #+ np.array(selected_object[0].matrix_world.translation) #CHANGE FOR MULTIOBJECT AND EDITMODE
         self.t_verts = np.transpose(self.globalverts)    #Columns of X, Y, Z
         self.covarmat = (np.cov(self.t_verts))           #covariance matrix
         self.eigenvalue, self.eigenvector = linalg.eig(self.covarmat)
@@ -122,6 +90,7 @@ class PCA:
         print("this is printing from inside the class", self.xmean)
         
     def create_lattice(self, marginx = 0, marginy = 0, marginz = 0):
+        
         for obj in bpy.data.objects:
             obj.select_set(False)
         
@@ -131,53 +100,22 @@ class PCA:
         
         bpy.ops.object.add(type='LATTICE', view_align=False, enter_editmode=False, location=(self.xmean, self.ymean, self.zmean))
         bpy.data.objects['Lattice'].name = lattice_name
-            
-        quat_z = get_quaternion(self.basez, self.eigenvector[0], np.cross(self.basez,self.eigenvector[0]))
-        quat_y = get_quaternion(self.basey, self.eigenvector[1], self.eigenvector[0])
-        quat_x = get_quaternion(self.basex, self.eigenvector[2], self.eigenvector[1])
         
-        #self.eigenvector = [self.eigenvector[1], self.eigenvector[2], self.eigenvector[0]]
-        #quat_z = mathutils.Matrix(self.eigenvector).to_quaternion()
-        
-        print("Eigenvectors are: \n", self.eigenvector) 
-        print("Quaternions are: \n", quat_z)
-        
-        '''
-        t = np.trace(self.eigenvector)
-        r = math.sqrt(1+t)
-        s = 1/(2*r)
-        qw = r/2
-        qx = (self.eigenvector[2][1] - self.eigenvector[1][2]) * s
-        qy = (self.eigenvector[0][2] - self.eigenvector[2][0]) * s
-        qz = (self.eigenvector[1][0] - self.eigenvector[0][1]) * s
-        
-        signx = (self.eigenvector[2][1] - self.eigenvector[1][2])/abs(self.eigenvector[2][1] - self.eigenvector[1][2])
-        signy = (self.eigenvector[0][2] - self.eigenvector[2][0])/abs(self.eigenvector[0][2] - self.eigenvector[2][0])
-        signz = (self.eigenvector[1][0] - self.eigenvector[0][1])/abs(self.eigenvector[1][0] - self.eigenvector[0][1])
-        
-        qw = math.sqrt(np.trace(self.eigenvector) + 1)/2
-
-        qx = signx * abs(np.sqrt(1 + self.eigenvector[0][0] - self.eigenvector[1][1] - self.eigenvector[2][2])/2)
-        qy = signy * abs(np.sqrt(1 - self.eigenvector[0][0] + self.eigenvector[1][1] - self.eigenvector[2][2])/2)
-        qz = signz * abs(np.sqrt(1 - self.eigenvector[0][0] - self.eigenvector[1][1] + self.eigenvector[2][2])/2)
-        '''
-        
-        #qnew = [qw, qx, qy, qz]
-        #print(qnew)
+        scale_matrix = np.array([[2*max((self.pcx)),0,0],[0,2*max((self.pcy)),0],[0,0,2*max((self.pcz))]])
+        world_matrix = np.dot(self.eigenvector,scale_matrix)
         
         bpy.data.objects[lattice_name].select_set(True)
         bpy.data.objects[lattice_name].rotation_mode = 'QUATERNION'
-        bpy.data.objects[lattice_name].rotation_quaternion = quat_z
         
-        bpy.ops.transform.rotate(value=math.acos(quat_y[0])*2, orient_axis='Z', orient_type='LOCAL', orient_matrix=((0, 0, 0), (0, 0, 0), (0, 0, 0)), orient_matrix_type='VIEW', mirror=True, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
-        #bpy.ops.transform.rotate(value=math.acos(quat_z[0])*2, orient_axis='Y', orient_type='LOCAL', orient_matrix=((0, 0, 0), (0, 0, 0), (0, 0, 0)), orient_matrix_type='VIEW', mirror=True, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
+        bpy.data.objects[lattice_name].matrix_world = Matrix(((self.eigenvector[0][0], self.eigenvector[1][0], -self.eigenvector[2][0], self.xmean),
+                                                              (self.eigenvector[0][1], self.eigenvector[1][1], -self.eigenvector[2][1], self.ymean),
+                                                              (self.eigenvector[0][2], self.eigenvector[1][2], -self.eigenvector[2][2], self.zmean),
+                                                              (0.0, 0.0, 0.0, 1.0)))
+
+        bpy.data.objects[lattice_name].scale = [2*max(abs(self.pcx)),2*max((self.pcy)),2*max((self.pcz))]
         
-        #bpy.data.objects[lattice_name].rotation_quaternion = quat_y
-        bpy.data.objects[lattice_name].location = [self.xmean,self.ymean,self.zmean]
-        bpy.data.objects[lattice_name].scale = [2*max(abs(self.pcz)),2*max((self.pcy)),2*max((self.pcx))]
-        
-    def apply_modifier():
+    def apply_modifier(self):
         pass
 
-PCA(obj3).create_lattice()
+PCA(selected_obj).create_lattice()
 #===============================    
