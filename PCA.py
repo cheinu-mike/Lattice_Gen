@@ -32,7 +32,7 @@ def get_objname(selected_objects):
 get_objname(bpy.context.selected_objects)
 
 #Extract the GLOBAL vertex coordinates of the object
-def get_localvert_coor(active_object):
+def get_localvert_coor2(active_object):
     all_verts = []
     for objs in active_object:
         global_verts = np.array(objs.matrix_world.translation)
@@ -44,6 +44,19 @@ def get_localvert_coor(active_object):
             verts = [np.array(vert.co) + global_verts for vert in objs.data.vertices]
             all_verts += verts
     return all_verts
+
+def get_localvert_coor(active_object):
+    all_verts = []
+    for objs in active_object:
+        global_verts = np.array(objs.matrix_world.translation)
+        if objs.mode == 'EDIT':
+            bm = bmesh.from_edit_mesh(objs.data)
+            verts = [np.array(vert.co) + global_verts for vert in bm.verts if vert.select]
+            all_verts += verts
+        else:
+            verts = [np.array(vert.co) + global_verts for vert in objs.data.vertices]
+            all_verts += verts
+    return all_verts    
 
 #Extract the vertex coordinates with respect to PC axis
 def get_PC_coor(verts, vert_mean, eigenmatrix):
@@ -91,6 +104,7 @@ class PCA:
         
     def create_lattice(self, marginx = 0, marginy = 0, marginz = 0):
         
+        bpy.ops.object.mode_set(mode = 'OBJECT')
         for obj in bpy.data.objects:
             obj.select_set(False)
         
