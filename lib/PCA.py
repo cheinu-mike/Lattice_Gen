@@ -130,6 +130,7 @@ class PCA:
         
     def apply_modifier(self):
         pass
-if __init__:'__main__':
+
+if __name__ == '__main__':
     PCA(selected_obj).create_lattice()
 #===============================    
